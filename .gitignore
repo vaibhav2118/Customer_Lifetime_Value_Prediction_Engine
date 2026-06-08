@@ -1,0 +1,26 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Databases and environment files
+*.db
+.env
+.venv
+env/
+venv/
+ENV/
+mlruns/
+.pytest_cache/
+
+# Large datasets and model files (best practice to exclude from Git)
+*.xlsx
+*.parquet
+*.pkl
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Jupyter / IPython
+.ipynb_checkpoints

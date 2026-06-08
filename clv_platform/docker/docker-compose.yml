@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: clv_postgres_db
+    restart: always
+    environment:
+      POSTGRES_DB: clv_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - clv_network
+
+  api:
+    build:
+      context: ../
+      dockerfile: clv_platform/docker/Dockerfile.api
+    container_name: clv_fastapi_backend
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/clv_db
+      - JWT_SECRET_KEY=clv_platform_super_secret_jwt_key_2026
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    networks:
+      - clv_network
+
+  dashboard:
+    build:
+      context: ../
+      dockerfile: clv_platform/docker/Dockerfile.dashboard
+    container_name: clv_streamlit_dashboard
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/clv_db
+      - API_URL=http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    networks:
+      - clv_network
+
+volumes:
+  postgres_data:
+
+networks:
+  clv_network:
+    driver: bridge
