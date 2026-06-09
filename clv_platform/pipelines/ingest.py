@@ -80,7 +80,7 @@ def run_ingestion(limit_rows: int = None):
     for sheet_name in ["Year 2009-2010", "Year 2010-2011"]:
         try:
             log.info("Parsing sheet: %s", sheet_name)
-            df_sheet = pd.read_excel(excel_path, sheet_name=sheet_name, nrows=limit_rows)
+            df_sheet = pd.read_excel(excel_path, sheet_name=sheet_name, nrows=limit_rows, dtype={"Customer ID": str, "StockCode": str})
             df_list.append(df_sheet)
         except Exception as e:
             log.warning("Could not read sheet %s: %s. Trying sheet index fallback...", sheet_name, e)

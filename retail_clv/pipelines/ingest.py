@@ -102,7 +102,7 @@ def load_raw(path: Path) -> pd.DataFrame:
     sheets = []
     for sheet in ["Year 2009-2010", "Year 2010-2011"]:
         try:
-            df = pd.read_excel(path, sheet_name=sheet, dtype={"Customer ID": str})
+            df = pd.read_excel(path, sheet_name=sheet, dtype={"Customer ID": str, "StockCode": str})
             df["source_sheet"] = sheet
             sheets.append(df)
             log.info("  Loaded sheet '%s': %d rows", sheet, len(df))

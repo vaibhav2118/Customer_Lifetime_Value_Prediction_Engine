@@ -1,13 +1,16 @@
 import os
+import secrets
+import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, List
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from clv_platform.database.connection import get_db
-from clv_platform.database.models import User
+from clv_platform.database.models import User, Tenant, ApiKey, AuditLog
 
 # JWT Secret and Configurations
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "clv_platform_super_secret_jwt_key_2026")
@@ -69,8 +72,68 @@ require_admin = RoleChecker(["Admin"])
 require_analyst_or_above = RoleChecker(["Admin", "Analyst"])
 require_any_user = RoleChecker(["Admin", "Analyst", "Business User"])
 
+# --- API KEY AUTHENTICATION ---
+def verify_api_key(x_api_key: Optional[str] = Header(None), db: Session = Depends(get_db)) -> ApiKey:
+    if not x_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API Key missing in X-API-Key header",
+        )
+    # Hash incoming key and match with DB
+    hashed_key = hashlib.sha256(x_api_key.encode()).hexdigest()
+    api_key_record = db.query(ApiKey).filter(ApiKey.key_hash == hashed_key).first()
+    
+    if not api_key_record:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API Key",
+        )
+        
+    if api_key_record.expires_at and api_key_record.expires_at < datetime.utcnow():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API Key has expired",
+        )
+        
+    return api_key_record
+
+# --- AUDIT LOGGING HELPER ---
+def log_audit_action(
+    db: Session, 
+    tenant_id: Optional[int], 
+    user_id: Optional[int], 
+    user_email: Optional[str], 
+    action: str, 
+    ip_address: Optional[str] = None, 
+    details: Optional[str] = None
+):
+    try:
+        log_entry = AuditLog(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            user_email=user_email,
+            action=action,
+            ip_address=ip_address,
+            details=details
+        )
+        db.add(log_entry)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        # Fallback to python logging if DB fails
+        print(f"[Audit Log Error] Failed writing {action} to DB: {e}")
+
+# --- SEED DEFAULT TENANTS & USERS ---
 def seed_default_users(db: Session):
-    """Seed base users in database if they don't exist yet."""
+    """Seed base tenant and users in database if they don't exist yet."""
+    # Seed default tenant
+    tenant = db.query(Tenant).filter(Tenant.name == "Global Retail Corp").first()
+    if not tenant:
+        tenant = Tenant(name="Global Retail Corp")
+        db.add(tenant)
+        db.commit()
+        db.refresh(tenant)
+
     default_users = [
         {"email": "admin@clv.com", "password": "admin123", "role": "Admin"},
         {"email": "analyst@clv.com", "password": "analyst123", "role": "Analyst"},
@@ -84,8 +147,10 @@ def seed_default_users(db: Session):
             db_user = User(
                 email=u_data["email"],
                 hashed_password=hashed,
-                role=u_data["role"]
+                role=u_data["role"],
+                tenant_id=tenant.id
             )
             db.add(db_user)
             db.commit()
             db.refresh(db_user)
+

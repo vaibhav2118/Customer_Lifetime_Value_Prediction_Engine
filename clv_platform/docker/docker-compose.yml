@@ -35,14 +35,11 @@ services:
   dashboard:
     build:
       context: ../
-      dockerfile: clv_platform/docker/Dockerfile.dashboard
-    container_name: clv_streamlit_dashboard
+      dockerfile: clv_platform/docker/Dockerfile.frontend
+    container_name: clv_react_frontend
     restart: always
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/clv_db
-      - API_URL=http://api:8000
     ports:
-      - "8501:8501"
+      - "3000:80"
     depends_on:
       - api
     networks:
